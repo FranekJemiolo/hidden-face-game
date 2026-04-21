@@ -244,9 +244,9 @@ body {
   <p>Return the cube to its solved state by rotating slices.</p>
   
   <h3>Colors</h3>
-  <p>The cube uses 6 standard Rubik's cube colors:</p>
+  <p>The cube uses 6 colors (light gray instead of white for better text contrast):</p>
   <ul>
-    <li><span style="color: #FFFFFF; background: #333; padding: 2px 6px; border-radius: 3px;">⬜</span> White - Top face</li>
+    <li><span style="color: #CCCCCC; background: #333; padding: 2px 6px; border-radius: 3px;">⬜</span> Light gray - Top face</li>
     <li><span style="color: #FFFF00; background: #333; padding: 2px 6px; border-radius: 3px;">⬛</span> Yellow - Bottom face</li>
     <li><span style="color: #FF0000; background: #333; padding: 2px 6px; border-radius: 3px;">🟥</span> Red - Front face</li>
     <li><span style="color: #FF8C00; background: #333; padding: 2px 6px; border-radius: 3px;">🟧</span> Orange - Back face</li>
@@ -295,9 +295,9 @@ function createSolvedCube() {
         const piece = { id: id++ };
         
         // Determine color based on face position
-        // Standard Rubik's cube colors:
-        // White (top), Yellow (bottom), Red (front), Orange (back), Green (right), Blue (left)
-        if (y === 0) piece.color = '#FFFFFF'; // Top - White
+        // Standard Rubik's cube colors (with light gray instead of white for text contrast):
+        // Light gray (top), Yellow (bottom), Red (front), Orange (back), Green (right), Blue (left)
+        if (y === 0) piece.color = '#CCCCCC'; // Top - Light gray
         else if (y === 2) piece.color = '#FFFF00'; // Bottom - Yellow
         else if (z === 2) piece.color = '#FF0000'; // Front - Red
         else if (z === 0) piece.color = '#FF8C00'; // Back - Orange
