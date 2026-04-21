@@ -176,6 +176,22 @@ body {
   background: #444;
 }
 
+#drag-arrow {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  font-size: 32px;
+  color: #4CAF50;
+  text-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+  transform-origin: center;
+}
+
+#drag-arrow.visible {
+  opacity: 1;
+}
+
 #controls {
   margin-top: 20px;
   text-align: center;
@@ -211,6 +227,8 @@ body {
 </div>
 
 <button id="help-toggle">?</button>
+
+<div id="drag-arrow">→</div>
 
 <div id="help-panel">
   <h2>🎮 How to Play</h2>
@@ -546,6 +564,7 @@ function render() {
 ========================= */
 
 let drag = null;
+const dragArrow = document.getElementById("drag-arrow");
 
 function highlightSlice(row, col, dx, dy) {
   // Clear previous highlights
@@ -570,6 +589,27 @@ function clearHighlights() {
   el.querySelectorAll(".slice-highlight").forEach(t => t.classList.remove("slice-highlight"));
 }
 
+function updateArrow(e, dx, dy) {
+  const horizontal = Math.abs(dx) > Math.abs(dy);
+  const arrowSize = 40;
+  
+  if (horizontal) {
+    dragArrow.textContent = dx > 0 ? "→" : "←";
+    dragArrow.style.left = (e.clientX + arrowSize / 2) + "px";
+    dragArrow.style.top = (e.clientY - arrowSize / 2) + "px";
+  } else {
+    dragArrow.textContent = dy > 0 ? "↓" : "↑";
+    dragArrow.style.left = (e.clientX - arrowSize / 2) + "px";
+    dragArrow.style.top = (e.clientY + arrowSize / 2) + "px";
+  }
+  
+  dragArrow.classList.add("visible");
+}
+
+function hideArrow() {
+  dragArrow.classList.remove("visible");
+}
+
 el.addEventListener("pointerdown", (e) => {
   const t = e.target;
   if (!t.classList.contains("tile")) return;
@@ -589,8 +629,13 @@ el.addEventListener("pointermove", (e) => {
   const dx = e.clientX - drag.startX;
   const dy = e.clientY - drag.startY;
   
-  // Highlight the slice that will be rotated
-  highlightSlice(drag.row, drag.col, dx, dy);
+  // Only show arrow if there's significant movement
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    // Highlight the slice that will be rotated
+    highlightSlice(drag.row, drag.col, dx, dy);
+    // Update arrow position and direction
+    updateArrow(e, dx, dy);
+  }
 });
 
 el.addEventListener("pointerup", async (e) => {
@@ -600,6 +645,7 @@ el.addEventListener("pointerup", async (e) => {
   const dy = e.clientY - drag.startY;
 
   clearHighlights();
+  hideArrow();
 
   if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
     await applyInteraction({
@@ -616,6 +662,7 @@ el.addEventListener("pointerup", async (e) => {
 
 el.addEventListener("pointerleave", () => {
   clearHighlights();
+  hideArrow();
 });
 
 /* =========================
