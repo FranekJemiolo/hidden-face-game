@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hidden Face - 3D Cube Puzzle</title>
+<style>
+body {
+  margin: 0;
+  background: #111;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#hud {
+  margin-bottom: 20px;
+  opacity: 0.9;
+  text-align: center;
+}
+
+#hud h1 {
+  margin: 0 0 10px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+#hud .stats {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+#hud .share-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+#hud .share-btn:hover {
+  background: #444;
+}
+
+#game {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  perspective: 900px;
+}
+
+#cube {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  transform-style: preserve-3d;
+}
+
+.slice-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  transform-style: preserve-3d;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.tile {
+  background: #333;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  font-size: 14px;
+  font-weight: 600;
+  transform-style: preserve-3d;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.tile.dragging {
+  outline: 2px solid white;
+}
+
+#controls {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+#controls kbd {
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <h1>Hidden Face</h1>
+  <div class="stats">
+    <span>Moves: <strong id="moves">0</strong></span>
+    <span>Seed: <strong id="seed">-</strong></span>
+  </div>
+  <button class="share-btn" id="shareBtn">Share Puzzle</button>
+</div>
+
+<div id="game">
+  <div id="cube"></div>
+</div>
+
+<div id="controls">
+  Drag to rotate slices • <kbd>←</kbd> <kbd>→</kbd> to rotate camera
+</div>
+
+<script>
+/* =========================
+  1. SEEDED RNG (LCG)
+========================= */
+
+function createSeededRandom(seed) {
+  let s = seed >>> 0;
+  return function rand() {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/* =========================
+  2. CUBE STATE
+========================= */
+
+function createSolvedCube() {
+  let id = 0;
+  return Array.from({ length: 3 }, (_, x) =>
+    Array.from({ length: 3 }, (_, y) =>
+      Array.from({ length: 3 }, (_, z) => ({
+        id: id++,
+        color: `hsl(${id * 13}, 70%, 50%)`
+      }))
+    )
+  );
+}
+
+function clone(c) {
+  return c.map(x => x.map(y => y.map(z => ({ ...z }))));
+}
+
+/* =========================
+  3. ROTATIONS (CORE LOGIC)
+========================= */
+
+function rotateX(cube, layer, dir) {
+  const o = clone(cube), n = clone(cube);
+  for (let y = 0; y < 3; y++) {
+    for (let z = 0; z < 3; z++) {
+      const t = o[layer][y][z];
+      let y2, z2;
+      if (dir === 1) { y2 = z; z2 = 2 - y; }
+      else { y2 = 2 - z; z2 = y; }
+      n[layer][y2][z2] = t;
+    }
+  }
+  return n;
+}
+
+function rotateY(cube, layer, dir) {
+  const o = clone(cube), n = clone(cube);
+  for (let x = 0; x < 3; x++) {
+    for (let z = 0; z < 3; z++) {
+      const t = o[x][layer][z];
+      let x2, z2;
+      if (dir === 1) { x2 = z; z2 = 2 - x; }
+      else { x2 = 2 - z; z2 = x; }
+      n[x2][layer][z2] = t;
+    }
+  }
+  return n;
+}
+
+/* =========================
+  4. VALID MOVE SET
+========================= */
+
+const MOVES = [
+  { type: "X", layer: 0 },
+  { type: "X", layer: 1 },
+  { type: "X", layer: 2 },
+  { type: "Y", layer: 0 },
+  { type: "Y", layer: 1 },
+  { type: "Y", layer: 2 }
+];
+
+/* =========================
+  5. SCRAMBLE GENERATOR (SOLVABLE BY DESIGN)
+========================= */
+
+function generateScramble(seed, cube, steps = 20) {
+  const rand = createSeededRandom(seed);
+  const moves = [];
+  let state = cube;
+
+  for (let i = 0; i < steps; i++) {
+    const move = MOVES[Math.floor(rand() * MOVES.length)];
+    const dir = rand() > 0.5 ? 1 : -1;
+
+    if (move.type === "X") {
+      state = rotateX(state, move.layer, dir);
+    } else {
+      state = rotateY(state, move.layer, dir);
+    }
+
+    moves.push({
+      type: move.type,
+      layer: move.layer,
+      dir
+    });
+  }
+
+  return { state, moves };
+}
+
+/* =========================
+  6. URL ENCODING/DECODING
+========================= */
+
+function encodeGame(seed, moves) {
+  const scramble = moves
+    .map(m => `${m.type}${m.layer}${m.dir > 0 ? "+" : "-"}`)
+    .join(",");
+  return `#seed=${seed}&scramble=${scramble}`;
+}
+
+function decodeGame(hash) {
+  const params = new URLSearchParams(hash.replace("#", ""));
+  const seed = Number(params.get("seed"));
+  const scrambleRaw = params.get("scramble") || "";
+  const moves = scrambleRaw
+    .split(",")
+    .filter(Boolean)
+    .map(s => ({
+      type: s[0],
+      layer: Number(s[1]),
+      dir: s.includes("+") ? 1 : -1
+    }));
+  return { seed, moves };
+}
+
+/* =========================
+  7. CAMERA
+========================= */
+
+let camera = { rot: 0 };
+
+/* =========================
+  8. FACE MAPPING (CAMERA-AWARE)
+========================= */
+
+function getVisibleFace(cube) {
+  const grid = [];
+  for (let r = 0; r < 3; r++) {
+    const row = [];
+    for (let c = 0; c < 3; c++) {
+      let x = c;
+      let y = 2 - r;
+      let z = 2;
+      for (let i = 0; i < camera.rot; i++) {
+        [x, z] = [z, 2 - x];
+      }
+      row.push(cube[x][y][z]);
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+/* =========================
+  9. MAP INTERACTION → ROTATION
+========================= */
+
+function mapInteractionToRotation({ row, col, dx, dy }) {
+  const horizontal = Math.abs(dx) > Math.abs(dy);
+  if (horizontal) {
+    return {
+      type: "Y",
+      layer: row,
+      dir: dx > 0 ? 1 : -1
+    };
+  }
+  return {
+    type: "X",
+    layer: col,
+    dir: dy > 0 ? -1 : 1
+  };
+}
+
+/* =========================
+  10. 3D SLICE ANIMATION
+========================= */
+
+async function animateRotation({ type, layer, direction, cubeElement }) {
+  const slice = document.createElement("div");
+  slice.className = "slice-layer";
+
+  const tiles = cubeElement.querySelectorAll(".tile");
+  const selected = [];
+
+  tiles.forEach(tile => {
+    const x = +tile.dataset.x;
+    const y = +tile.dataset.y;
+    const z = +tile.dataset.z;
+    if ((type === "X" && x === layer) || (type === "Y" && y === layer)) {
+      selected.push(tile);
+    }
+  });
+
+  selected.forEach(t => {
+    slice.appendChild(t.cloneNode(true));
+  });
+
+  cubeElement.appendChild(slice);
+
+  let rotateAxis;
+  if (type === "X") rotateAxis = "rotateX";
+  if (type === "Y") rotateAxis = "rotateY";
+
+  const angle = direction * 90;
+
+  slice.style.transition = "transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+  slice.style.transform = `${rotateAxis}(${angle}deg)`;
+  slice.getBoundingClientRect();
+  slice.style.transform = `${rotateAxis}(${angle}deg)`;
+
+  await new Promise(r => setTimeout(r, 300));
+  slice.remove();
+}
+
+/* =========================
+  11. APPLY INTERACTION PIPELINE
+========================= */
+
+async function applyInteraction(input) {
+  const cmd = mapInteractionToRotation(input);
+  
+  await animateRotation({
+    type: cmd.type,
+    layer: cmd.layer,
+    direction: cmd.dir,
+    cubeElement: document.getElementById("cube")
+  });
+
+  if (cmd.type === "X") cube = rotateX(cube, cmd.layer, cmd.dir);
+  if (cmd.type === "Y") cube = rotateY(cube, cmd.layer, cmd.dir);
+
+  moves++;
+  document.getElementById("moves").textContent = moves;
+  render();
+}
+
+/* =========================
+  12. RENDER
+========================= */
+
+const el = document.getElementById("cube");
+
+function render() {
+  const face = getVisibleFace(cube);
+  el.innerHTML = "";
+
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const t = document.createElement("div");
+      t.className = "tile";
+      t.style.background = face[r][c].color;
+      t.textContent = face[r][c].id;
+
+      // Store 3D coordinates for animation
+      let x = c;
+      let y = 2 - r;
+      let z = 2;
+      for (let i = 0; i < camera.rot; i++) {
+        [x, z] = [z, 2 - x];
+      }
+      t.dataset.x = x;
+      t.dataset.y = y;
+      t.dataset.z = z;
+
+      t.dataset.row = r;
+      t.dataset.col = c;
+
+      el.appendChild(t);
+    }
+  }
+}
+
+/* =========================
+  13. INPUT SYSTEM
+========================= */
+
+let drag = null;
+
+el.addEventListener("pointerdown", (e) => {
+  const t = e.target;
+  if (!t.classList.contains("tile")) return;
+
+  drag = {
+    row: +t.dataset.row,
+    col: +t.dataset.col,
+    startX: e.clientX,
+    startY: e.clientY
+  };
+  t.classList.add("dragging");
+});
+
+el.addEventListener("pointerup", async (e) => {
+  if (!drag) return;
+
+  const dx = e.clientX - drag.startX;
+  const dy = e.clientY - drag.startY;
+
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    await applyInteraction({
+      row: drag.row,
+      col: drag.col,
+      dx,
+      dy
+    });
+  }
+
+  el.querySelectorAll(".dragging").forEach(t => t.classList.remove("dragging"));
+  drag = null;
+});
+
+/* =========================
+  14. CAMERA CONTROL
+========================= */
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") camera.rot = (camera.rot + 1) % 4;
+  if (e.key === "ArrowLeft") camera.rot = (camera.rot + 3) % 4;
+  render();
+});
+
+/* =========================
+  15. SHARE FUNCTIONALITY
+========================= */
+
+document.getElementById("shareBtn").addEventListener("click", () => {
+  const url = window.location.origin + window.location.pathname + encodeGame(currentSeed, scrambleMoves);
+  navigator.clipboard.writeText(url).then(() => {
+    alert("Share URL copied to clipboard!");
+  });
+});
+
+/* =========================
+  16. GAME INITIALIZATION
+========================= */
+
+let cube;
+let moves = 0;
+let currentSeed;
+let scrambleMoves;
+
+function initGame(seed) {
+  currentSeed = seed;
+  let solvedCube = createSolvedCube();
+  const { state, moves: scramble } = generateScramble(seed, solvedCube, 25);
+  cube = state;
+  scrambleMoves = scramble;
+  moves = 0;
+  
+  document.getElementById("seed").textContent = seed;
+  document.getElementById("moves").textContent = moves;
+  render();
+}
+
+// Check URL for shared puzzle
+if (window.location.hash) {
+  try {
+    const { seed, moves: urlMoves } = decodeGame(window.location.hash);
+    let solvedCube = createSolvedCube();
+    cube = solvedCube;
+    // Apply moves from URL
+    for (const move of urlMoves) {
+      if (move.type === "X") cube = rotateX(cube, move.layer, move.dir);
+      else cube = rotateY(cube, move.layer, move.dir);
+    }
+    scrambleMoves = urlMoves;
+    currentSeed = seed;
+    moves = 0;
+    document.getElementById("seed").textContent = seed;
+    document.getElementById("moves").textContent = moves;
+    render();
+  } catch (e) {
+    // Fallback to random seed
+    initGame(Math.floor(Math.random() * 1000000));
+  }
+} else {
+  initGame(Math.floor(Math.random() * 1000000));
+}
+</script>
+
+</body>
+</html>
