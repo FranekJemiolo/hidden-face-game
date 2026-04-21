@@ -98,6 +98,84 @@ body {
   outline: 2px solid white;
 }
 
+.tile.slice-highlight {
+  outline: 3px solid #4CAF50;
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+}
+
+#help-panel {
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  width: 280px;
+  background: #222;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  color: white;
+  font-size: 13px;
+  line-height: 1.6;
+  transform: translateX(320px);
+  transition: transform 0.3s ease;
+  z-index: 100;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+#help-panel.visible {
+  transform: translateX(0);
+}
+
+#help-panel h2 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 10px;
+}
+
+#help-panel h3 {
+  margin: 15px 0 10px 0;
+  font-size: 14px;
+  color: #4CAF50;
+}
+
+#help-panel ul {
+  margin: 0 0 15px 0;
+  padding-left: 20px;
+}
+
+#help-panel li {
+  margin: 5px 0;
+}
+
+#help-panel .color-example {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+#help-toggle {
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: white;
+  padding: 10px 15px;
+  cursor: pointer;
+  font-size: 14px;
+  z-index: 101;
+  transition: background 0.2s;
+}
+
+#help-toggle:hover {
+  background: #444;
+}
+
 #controls {
   margin-top: 20px;
   text-align: center;
@@ -130,6 +208,38 @@ body {
 
 <div id="controls">
   Drag to rotate slices • <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> to rotate camera
+</div>
+
+<button id="help-toggle">?</button>
+
+<div id="help-panel">
+  <h2>🎮 How to Play</h2>
+  
+  <h3>Controls</h3>
+  <ul>
+    <li><strong>Drag horizontally:</strong> Rotate Y-axis layer (rows)</li>
+    <li><strong>Drag vertically:</strong> Rotate X-axis layer (columns)</li>
+    <li><strong>Arrow keys:</strong> Rotate camera around the cube</li>
+  </ul>
+  
+  <h3>Goal</h3>
+  <p>Return the cube to its solved state by rotating slices.</p>
+  
+  <h3>Colors</h3>
+  <p>Each tile has a unique color representing its position in the 3×3×3 cube. When scrambled, colors will be mixed - your goal is to restore the original pattern.</p>
+  
+  <h3>Numbers</h3>
+  <p>Each tile shows its unique ID (0-26). These numbers help track individual pieces as they move through the cube. In the solved state, tiles are arranged in order.</p>
+  
+  <h3>Sharing</h3>
+  <p>Click "Share Puzzle" to copy a URL that lets others play the exact same puzzle with the same seed and scramble.</p>
+  
+  <h3>Tips</h3>
+  <ul>
+    <li>Use arrow keys to see different faces of the cube</li>
+    <li>Drag slowly to see which slice will rotate (highlighted in green)</li>
+    <li>The same puzzle can always be solved by reversing the scramble moves</li>
+  </ul>
 </div>
 
 <script>
@@ -437,6 +547,29 @@ function render() {
 
 let drag = null;
 
+function highlightSlice(row, col, dx, dy) {
+  // Clear previous highlights
+  el.querySelectorAll(".slice-highlight").forEach(t => t.classList.remove("slice-highlight"));
+  
+  const horizontal = Math.abs(dx) > Math.abs(dy);
+  const tiles = el.querySelectorAll(".tile");
+  
+  tiles.forEach(tile => {
+    const tileRow = +tile.dataset.row;
+    const tileCol = +tile.dataset.col;
+    
+    if (horizontal && tileRow === row) {
+      tile.classList.add("slice-highlight");
+    } else if (!horizontal && tileCol === col) {
+      tile.classList.add("slice-highlight");
+    }
+  });
+}
+
+function clearHighlights() {
+  el.querySelectorAll(".slice-highlight").forEach(t => t.classList.remove("slice-highlight"));
+}
+
 el.addEventListener("pointerdown", (e) => {
   const t = e.target;
   if (!t.classList.contains("tile")) return;
@@ -450,11 +583,23 @@ el.addEventListener("pointerdown", (e) => {
   t.classList.add("dragging");
 });
 
+el.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  
+  const dx = e.clientX - drag.startX;
+  const dy = e.clientY - drag.startY;
+  
+  // Highlight the slice that will be rotated
+  highlightSlice(drag.row, drag.col, dx, dy);
+});
+
 el.addEventListener("pointerup", async (e) => {
   if (!drag) return;
 
   const dx = e.clientX - drag.startX;
   const dy = e.clientY - drag.startY;
+
+  clearHighlights();
 
   if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
     await applyInteraction({
@@ -467,6 +612,10 @@ el.addEventListener("pointerup", async (e) => {
 
   el.querySelectorAll(".dragging").forEach(t => t.classList.remove("dragging"));
   drag = null;
+});
+
+el.addEventListener("pointerleave", () => {
+  clearHighlights();
 });
 
 /* =========================
@@ -493,7 +642,19 @@ document.getElementById("shareBtn").addEventListener("click", () => {
 });
 
 /* =========================
-  16. GAME INITIALIZATION
+  16. HELP PANEL TOGGLE
+========================= */
+
+const helpToggle = document.getElementById("help-toggle");
+const helpPanel = document.getElementById("help-panel");
+
+helpToggle.addEventListener("click", () => {
+  helpPanel.classList.toggle("visible");
+  helpToggle.textContent = helpPanel.classList.contains("visible") ? "✕" : "?";
+});
+
+/* =========================
+  17. GAME INITIALIZATION
 ========================= */
 
 let cube;
