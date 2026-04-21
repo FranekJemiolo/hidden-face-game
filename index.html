@@ -245,7 +245,7 @@ function generateScramble(seed, cube, steps = 20) {
 
 function encodeGame(seed, moves) {
   const scramble = moves
-    .map(m => `${m.type}${m.layer}${m.dir > 0 ? "+" : "-"}`)
+    .map(m => `${m.type}${m.layer}${m.dir > 0 ? "%2B" : "-"}`)
     .join(",");
   return `#seed=${seed}&scramble=${scramble}`;
 }
@@ -257,11 +257,14 @@ function decodeGame(hash) {
   const moves = scrambleRaw
     .split(",")
     .filter(Boolean)
-    .map(s => ({
-      type: s[0],
-      layer: Number(s[1]),
-      dir: s.includes("+") ? 1 : -1
-    }));
+    .map(s => {
+      const decoded = s.replace(/%2B/g, "+");
+      return {
+        type: decoded[0],
+        layer: Number(decoded[1]),
+        dir: decoded.endsWith("+") ? 1 : -1
+      };
+    });
   return { seed, moves };
 }
 
