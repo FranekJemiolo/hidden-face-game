@@ -244,7 +244,16 @@ body {
   <p>Return the cube to its solved state by rotating slices.</p>
   
   <h3>Colors</h3>
-  <p>Each tile has a unique color representing its position in the 3×3×3 cube. When scrambled, colors will be mixed - your goal is to restore the original pattern.</p>
+  <p>The cube uses 6 standard Rubik's cube colors:</p>
+  <ul>
+    <li><span style="color: #FFFFFF; background: #333; padding: 2px 6px; border-radius: 3px;">⬜</span> White - Top face</li>
+    <li><span style="color: #FFFF00; background: #333; padding: 2px 6px; border-radius: 3px;">⬛</span> Yellow - Bottom face</li>
+    <li><span style="color: #FF0000; background: #333; padding: 2px 6px; border-radius: 3px;">🟥</span> Red - Front face</li>
+    <li><span style="color: #FF8C00; background: #333; padding: 2px 6px; border-radius: 3px;">🟧</span> Orange - Back face</li>
+    <li><span style="color: #00FF00; background: #333; padding: 2px 6px; border-radius: 3px;">🟩</span> Green - Right face</li>
+    <li><span style="color: #0000FF; background: #333; padding: 2px 6px; border-radius: 3px;">🟦</span> Blue - Left face</li>
+  </ul>
+  <p>Inner pieces are dark gray. When scrambled, colors will be mixed - restore the original pattern to solve!</p>
   
   <h3>Numbers</h3>
   <p>Each tile shows its unique ID (0-26). These numbers help track individual pieces as they move through the cube. In the solved state, tiles are arranged in order.</p>
@@ -256,6 +265,7 @@ body {
   <ul>
     <li>Use arrow keys to see different faces of the cube</li>
     <li>Drag slowly to see which slice will rotate (highlighted in green)</li>
+    <li>The arrow indicator shows rotation direction during drag</li>
     <li>The same puzzle can always be solved by reversing the scramble moves</li>
   </ul>
 </div>
@@ -281,10 +291,22 @@ function createSolvedCube() {
   let id = 0;
   return Array.from({ length: 3 }, (_, x) =>
     Array.from({ length: 3 }, (_, y) =>
-      Array.from({ length: 3 }, (_, z) => ({
-        id: id++,
-        color: `hsl(${id * 13}, 70%, 50%)`
-      }))
+      Array.from({ length: 3 }, (_, z) => {
+        const piece = { id: id++ };
+        
+        // Determine color based on face position
+        // Standard Rubik's cube colors:
+        // White (top), Yellow (bottom), Red (front), Orange (back), Green (right), Blue (left)
+        if (y === 0) piece.color = '#FFFFFF'; // Top - White
+        else if (y === 2) piece.color = '#FFFF00'; // Bottom - Yellow
+        else if (z === 2) piece.color = '#FF0000'; // Front - Red
+        else if (z === 0) piece.color = '#FF8C00'; // Back - Orange
+        else if (x === 2) piece.color = '#00FF00'; // Right - Green
+        else if (x === 0) piece.color = '#0000FF'; // Left - Blue
+        else piece.color = '#333333'; // Inner pieces - dark gray
+        
+        return piece;
+      })
     )
   );
 }
