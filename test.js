@@ -183,7 +183,7 @@ function runTest(test) {
   CAMERA SYSTEM (for testing)
 ========================= */
 
-let camera = { rot: 0 };
+let camera = { rot: 0, pitch: 0 };
 
 function getVisibleFace(cube) {
   const grid = [];
@@ -193,9 +193,17 @@ function getVisibleFace(cube) {
       let x = c;
       let y = 2 - r;
       let z = 2;
+      
+      // Apply horizontal rotation (around Y axis)
       for (let i = 0; i < camera.rot; i++) {
         [x, z] = [z, 2 - x];
       }
+      
+      // Apply vertical rotation (around X axis)
+      for (let i = 0; i < camera.pitch; i++) {
+        [y, z] = [z, 2 - y];
+      }
+      
       row.push(cube[x][y][z]);
     }
     grid.push(row);
@@ -451,15 +459,48 @@ test("camera 4x rotation returns to original", () => {
   const cube = createSolvedCube();
   
   camera.rot = 0;
+  camera.pitch = 0;
   const face0 = getVisibleFace(cube);
   
   camera.rot = 4;
+  camera.pitch = 0;
   const face4 = getVisibleFace(cube);
   
   assert(cubesEqual(face0, face4), "Camera 4x rotation should return to original face");
 });
 
-// Test 14: Interaction mapping - horizontal drag maps to Y rotation
+// Test 14: Camera pitch 4x rotation returns to original face
+test("camera pitch 4x rotation returns to original", () => {
+  const cube = createSolvedCube();
+  
+  camera.rot = 0;
+  camera.pitch = 0;
+  const face0 = getVisibleFace(cube);
+  
+  camera.rot = 0;
+  camera.pitch = 4;
+  const face4 = getVisibleFace(cube);
+  
+  assert(cubesEqual(face0, face4), "Camera pitch 4x rotation should return to original face");
+});
+
+// Test 15: Camera pitch changes visible face
+test("camera pitch changes visible face", () => {
+  const cube = createSolvedCube();
+  
+  camera.rot = 0;
+  camera.pitch = 0;
+  const face0 = getVisibleFace(cube);
+  
+  camera.rot = 0;
+  camera.pitch = 1;
+  const face1 = getVisibleFace(cube);
+  
+  // Faces should be different when camera pitch changes
+  assert(!cubesEqual(face0, face1), "Camera pitch should change visible face");
+});
+
+// Test 16: Interaction mapping - horizontal drag maps to Y rotation
 test("horizontal drag maps to Y rotation", () => {
   const result = mapInteractionToRotation({ row: 1, col: 1, dx: 50, dy: 10 });
   assert(result.type === "Y", "Horizontal drag should map to Y rotation");
@@ -467,7 +508,7 @@ test("horizontal drag maps to Y rotation", () => {
   assert(result.dir === 1, "Positive dx should give positive direction");
 });
 
-// Test 15: Interaction mapping - vertical drag maps to X rotation
+// Test 17: Interaction mapping - vertical drag maps to X rotation
 test("vertical drag maps to X rotation", () => {
   const result = mapInteractionToRotation({ row: 1, col: 1, dx: 10, dy: 50 });
   assert(result.type === "X", "Vertical drag should map to X rotation");
@@ -475,14 +516,14 @@ test("vertical drag maps to X rotation", () => {
   assert(result.dir === -1, "Positive dy should give negative direction");
 });
 
-// Test 16: Interaction mapping - negative dx
+// Test 18: Interaction mapping - negative dx
 test("negative dx maps to negative direction", () => {
   const result = mapInteractionToRotation({ row: 0, col: 2, dx: -30, dy: 5 });
   assert(result.type === "Y", "Horizontal drag should map to Y rotation");
   assert(result.dir === -1, "Negative dx should give negative direction");
 });
 
-// Test 17: Interaction mapping - negative dy
+// Test 19: Interaction mapping - negative dy
 test("negative dy maps to positive direction", () => {
   const result = mapInteractionToRotation({ row: 2, col: 0, dx: 5, dy: -40 });
   assert(result.type === "X", "Vertical drag should map to X rotation");

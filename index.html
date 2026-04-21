@@ -129,7 +129,7 @@ body {
 </div>
 
 <div id="controls">
-  Drag to rotate slices • <kbd>←</kbd> <kbd>→</kbd> to rotate camera
+  Drag to rotate slices • <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> to rotate camera
 </div>
 
 <script>
@@ -272,7 +272,7 @@ function decodeGame(hash) {
   7. CAMERA
 ========================= */
 
-let camera = { rot: 0 };
+let camera = { rot: 0, pitch: 0 };
 
 /* =========================
   8. FACE MAPPING (CAMERA-AWARE)
@@ -286,9 +286,17 @@ function getVisibleFace(cube) {
       let x = c;
       let y = 2 - r;
       let z = 2;
+      
+      // Apply horizontal rotation (around Y axis)
       for (let i = 0; i < camera.rot; i++) {
         [x, z] = [z, 2 - x];
       }
+      
+      // Apply vertical rotation (around X axis)
+      for (let i = 0; i < camera.pitch; i++) {
+        [y, z] = [z, 2 - y];
+      }
+      
       row.push(cube[x][y][z]);
     }
     grid.push(row);
@@ -400,9 +408,17 @@ function render() {
       let x = c;
       let y = 2 - r;
       let z = 2;
+      
+      // Apply horizontal rotation (around Y axis)
       for (let i = 0; i < camera.rot; i++) {
         [x, z] = [z, 2 - x];
       }
+      
+      // Apply vertical rotation (around X axis)
+      for (let i = 0; i < camera.pitch; i++) {
+        [y, z] = [z, 2 - y];
+      }
+      
       t.dataset.x = x;
       t.dataset.y = y;
       t.dataset.z = z;
@@ -460,6 +476,8 @@ el.addEventListener("pointerup", async (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") camera.rot = (camera.rot + 1) % 4;
   if (e.key === "ArrowLeft") camera.rot = (camera.rot + 3) % 4;
+  if (e.key === "ArrowUp") camera.pitch = (camera.pitch + 1) % 4;
+  if (e.key === "ArrowDown") camera.pitch = (camera.pitch + 3) % 4;
   render();
 });
 
